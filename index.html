@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+  
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.5.0/lib/p5.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webmidi@latest/dist/iife/webmidi.iife.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.0.js"></script>
+    <script src="index.js"></script>
+    <script src="gate.js"></script>
+    <script src="channel.js"></script>
+    <script src="midi.js"></script>
+
+<style>
+    #gatesContainer{
+        outline: 1px solid black;
+        width: 50%;
+        height: 40%;
+        top: 30px;
+        right: 10px;
+        position: fixed;
+        overflow: scroll
+    }
+    #outputsContainer{
+        outline: 1px solid black;
+        width: 50%;
+        height: 50%;
+        bottom: 30px;
+        right: 10px;
+        position: fixed;
+        overflow: scroll;
+        vertical-align : middle
+    }
+    .channels{
+        width:100%;
+        outline: 1px solid red;
+        justify-content: space-between;
+        display: flex
+    }
+    .channelContent{
+        display: inline-block;
+        padding: 10px;
+    }
+</style>
+
+<head>
+    <title>Facs Music</title>
+</head>
+  
+<body>
+    <input type="file" name="inputfile" id="inputfile">
+
+    <div id="gatesContainer">
+        <div id="gatesList"></div>
+    </div>
+
+    <div id="outputsContainer">
+    </div>
+
+</body>
+</html>
