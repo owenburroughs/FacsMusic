@@ -14,17 +14,17 @@ class Channel{
         this.insturmentIndex = 0;
         this.midiChannel = 2
 
-        //create element
+        //create container element within the channels selection box
         this.channelContainer = createDiv()
         this.channelContainer.addClass("channels")
         this.channelContainer.parent(document.getElementById("outputsContainer"))
 
-        //name display
+        //name display for the channel
         this.nameDisplay = createP(`${this.index + 1}. ${this.name}`)
         this.nameDisplay.parent(this.channelContainer)
         this.nameDisplay.addClass("channelContent")
 
-        //insturment selection container
+        //insturment selection container for channel
         this.insturmentSelectContainer = createDiv()
         this.insturmentSelectContainer.parent(this.channelContainer)
         this.insturmentSelectContainer.addClass("channelContent")
@@ -40,12 +40,12 @@ class Channel{
         this.pokeChannelButton.parent(this.channelContainer)
         this.pokeChannelButton.addClass("channelContent")
     
-        this.assignMidiOut()
+        this.AssignMidiOut()
         
     }
 
     //assign midi outputs
-    assignMidiOut(){
+    AssignMidiOut(){
         //remove selection boxes if they exist to clear them
         if(this.insturmentSelect){
             this.insturmentSelect.remove()
@@ -80,8 +80,12 @@ class Channel{
             this.channelSelect.selected(this.midiChannel)
         }
     }
-    //broadcast channel change
+    //broadcast control change
     Broadcast(value){
+        //set insturment and midi channels to select boxes
+        this.insturmentIndex = this.insturmentSelect.elt.selectedIndex
+        this.midiChannel = this.channelSelect.elt.selectedIndex + 1
+
         this.valueDisplay.html(value)
         midiOutputs[this.insturmentIndex].channels[this.midiChannel].sendControlChange(this.index, value);
     }

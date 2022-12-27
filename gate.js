@@ -20,6 +20,32 @@ class Gate{
        this.two.dragging = false;
        this.three.dragging = false;
        this.four.dragging = false;
+
+       this.insturmentIndex=0
+       this.midiChannel=forwardChannel
+
+    ////create viewable parameter boxes
+        //create element
+        this.gateContainer = createDiv()
+        this.gateContainer.addClass("gates")
+        this.gateContainer.parent(document.getElementById("gatesContainer"))
+    
+        //name display
+        this.nameDisplay = createP(`${channelData[this.XChannel].name} vs. ${channelData[this.YChannel].name}`)
+        this.nameDisplay.parent(this.gateContainer)
+        this.nameDisplay.addClass("gateContent")
+
+        //insturment selection container
+        this.insturmentSelectContainer = createDiv()
+        this.insturmentSelectContainer.parent(this.gateContainer)
+        this.insturmentSelectContainer.addClass("gateContent")
+
+        //assign midi for first time
+        this.AssignMidiOut()
+
+        //hide element at first
+        this.gateContainer.hide()
+
     }
     show(){
         if(this.one.dragging==true){
@@ -70,6 +96,57 @@ class Gate{
         this.three.dragging = false;
         this.four.dragging = false;
     }
+
+    //show and hide gate parameters for editing
+    ShowControls(){
+        this.gateContainer.show()
+    }
+    HideControls(){
+        this.gateContainer.hide()
+    }
+
+    AssignMidiOut(){
+        //remove selection boxes if they exist to clear them
+        if(this.insturmentSelect){
+            this.insturmentSelect.remove()
+            this.channelSelect.remove()
+        }
+
+        //if insturment and channel selections don't exist, create them
+            this.insturmentSelect = createSelect()
+            this.insturmentSelect.parent(this.insturmentSelectContainer)
+            this.insturmentSelect.addClass("gateContent")
+            this.insturmentSelect.changed(this.UpdateMidiOut.bind(this))
+
+            this.channelSelect = createSelect()
+            this.channelSelect.parent(this.insturmentSelectContainer)
+            this.channelSelect.addClass("gateContent")
+            this.channelSelect.changed(this.UpdateMidiOut.bind(this))
+
+        //create selection for all midi insturments
+        if (midiOutputs.length == 0){
+            //no midi connected, show message
+            this.insturmentSelect.option("No MIDI Insturment")
+        } else{
+            //add midi insturments to select
+            for(let output of midiOutputs){
+                this.insturmentSelect.option(output.name)
+            }
+            //add 16 target channels
+            for(let i=1; i<=16; i++){
+                this.channelSelect.option(i)
+            }
+
+            //assign correct settings to each channel
+            this.insturmentSelect.selected(this.insturmentIndex)
+            this.channelSelect.selected(this.midiChannel)
+        }
+    }
+
+    UpdateMidiOut(){
+        this.insturmentIndex = this.insturmentSelect.elt.selectedIndex
+        this.midiChannel = this.channelSelect.elt.selectedIndex + 1
+    }
 }
 
 function ContainsMouse(x,y,rad){
@@ -79,3 +156,4 @@ function ContainsMouse(x,y,rad){
         return false;
     }
 }
+ 

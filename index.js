@@ -1,9 +1,8 @@
 let facs, XMult, YMult, XSlider, YSlider, XInput, YInput, Xmin, Xmax, Ymin, Ymax, 
-XSelect, XMode, YSelect, YMode, gatedCheckbox;
+XSelect, XMode, YSelect, YMode, gatedCheckbox, sampledX, sampledY
 
 let width = 400;
 let height = 400;
-let frameRateVar = 10;
 let XChannel=0;
 let YChannel=0;
 let channelData=[]
@@ -11,19 +10,28 @@ let tempFacs =[]
 let newFacs =[]
 let gates = []
 let gateIndex =0;
+let visableEvents=1500
+let sampleFromGateIndex = 0
+let sampleMode = "Random"
 
 //p5 stuff
 function setup() {
     createCanvas(600, 600);
-    frameRate(frameRateVar);
     textSize(15);
+    strokeWeight(2)
     textAlign(CENTER, CENTER);
+
+      // Enable WEBMIDI.js and trigger the OnMidiEnabled() function when ready
+        WebMidi
+        .enable()
+        .then(OnMidiEnabled)
+        .catch(err => console.error(err));
 
     document.getElementById('inputfile')
     .addEventListener('change', function() {
         var fr=new FileReader();
         fr.onload=function(){
-            facs = JSON.parse(fr.result);
+            facs = ParseFCS(fr.result);
             tempFacs = facs.events.map((x) => x);
             
             XMode = createSelect();
@@ -45,9 +53,9 @@ function setup() {
             gatedCheckbox.position(500,30)
             gatedCheckbox.changed(GateChange)
             InitializeChannels()
-            //loop()
+            loop()
         }
-        fr.readAsText(this.files[0]);
+        fr.readAsArrayBuffer(this.files[0]);
     })
     
     XSlider = createSlider(0, 1, 1, 0);
@@ -94,8 +102,8 @@ function setup() {
     scaleYButton.mousePressed(ScaleY)
     scaleYButton.size(100, 20)  
 
-    let controlChangeButton = createButton("Reset FACS Plot")
-    controlChangeButton.mousePressed(ControlChange)
+    let midiChangeButton = createButton("Refresh MIDI Connections")
+    midiChangeButton.mousePressed(MidiRefresh)
   }
 
 //P5.js Draw Loop
@@ -103,8 +111,10 @@ function draw() {
     //draw the basic scene
     background(220);
     rect(0,0,width,height)
+    noStroke()
     text('X Axis',30, 500)
     text('Y Axis', 30, 550)
+    stroke(0)
 
     //check if .fcs file has been loaded. If not, don't run draw loop
     if(typeof facs != 'object'){
@@ -113,8 +123,18 @@ function draw() {
     }
 
     //check for active gate, in which case show it
+    //gate index is set correctly on channel change in the channel change function
     if(gates[gateIndex].active == true){
         gates[gateIndex].show()
+    }
+
+    //display any active gates
+    for(gate of gates){
+        if(gate.active){
+            gate.ShowControls()
+        }else{
+            gate.HideControls()
+        }
     }
     
 ///NOTE TO FUTURE SELF: This save code might introduce latency and could be moved elsewhere
@@ -129,49 +149,20 @@ function draw() {
     YMult = YSlider.value() * float(YInput.value())
 
      //if facs events exist, draw the events
-    if(tempFacs.length>0){
+   // if(tempFacs.length>0){
         let channelOne
         let channelTwo
-        let randomIndex = Math.floor(Math.random() * tempFacs.length)
-        newFacs.push(tempFacs[randomIndex])
-        tempFacs.splice(randomIndex,1)
 
-        //scale and set parameters for each channel
-        for (let channel of channelData){
-            let minMap = channel.minMap
-            let maxMap = channel.maxMap
-            let item, min, max
-
-            if(channel.mode == "Linear"){
-                item = tempFacs[randomIndex][channel.index]
-                min = channel.min
-                max = channel.max
-            }else{
-                if(tempFacs[randomIndex][channel.index]<0){
-                    item = 0
-                }else{
-                    item = Math.log10(tempFacs[randomIndex][channel.index])
-                }
-                if(channel.min<0){
-                    min=0
-                }else{
-                    min = Math.log10(channel.min)
-                }
-                max = Math.log10(channel.max)
-            }
-            channel.Broadcast(Math.round(map(item, min, max, minMap,  maxMap)*channel.sliderValue))
-        }
-
-        for(let i = 0; i <newFacs.length; i++){
+        for(let i = 0; i <visableEvents; i++){
             if(XMode.value() =="Linear"){
-                channelOne =  newFacs[i][XChannel]
+                channelOne =  facs.events[i][XChannel]
             }else{
-                channelOne =  Math.log10(newFacs[i][XChannel])
+                channelOne =  Math.log10(facs.events[i][XChannel])
             }
             if(YMode.value() =="Linear"){
-                channelTwo =  newFacs[i][YChannel]
+                channelTwo =  facs.events[i][YChannel]
             }else{
-                channelTwo =  Math.log10(newFacs[i][YChannel])
+                channelTwo =  Math.log10(facs.events[i][YChannel])
             }
         let displayX = Math.round(channelOne * XMult)
         let displayY = 400- Math.round(channelTwo * YMult)
@@ -184,8 +175,18 @@ function draw() {
         if(displayX<width && displayY<height){
             point(displayX,displayY)
         }
+        stroke('black')
         }
-    }
+
+        if(sampledX>0 && sampledY>0){
+            fill('red')
+            noStroke()
+            ellipse(sampledX, sampledY, 8, 8)
+            stroke(0)
+            fill("white")
+        }
+   // }
+    //PushNote()
 }
 
 function mousePressed() {
@@ -370,4 +371,97 @@ function InitializeChannels(){
 
     //now that the channels object is populated, assign the correct labels
     ChannelChange();
+}
+
+function PushNote(event){
+
+    outputInsturment = defaultInsturmentSelect.elt.selectedIndex
+    forwardChannel = defaultChannelSelect.elt.selectedIndex + 1
+
+    let randomIndex = Math.floor(Math.random() * tempFacs.length)
+        newFacs.push(tempFacs[randomIndex])
+        tempFacs.splice(randomIndex,1)
+
+        //scale and set parameters for each channel
+        for (let channel of channelData){
+            let minMap = parseInt(channel.minMap)
+            let maxMap = parseInt(channel.maxMap)
+            let item, min, max
+
+            if(channel.mode == "Linear"){
+                item = newFacs[newFacs.length - 1][channel.index]
+                min = channel.min
+                max = channel.max
+            }else{
+                if(tempFacs[randomIndex][channel.index]<=0){
+                    item = 0
+                }else{
+                    item = Math.log10(newFacs[newFacs.length - 1][channel.index])
+                }
+
+                if(channel.min<=0){
+                    min=0
+                }else{
+                    min = Math.log10(channel.min)
+                }
+                max = Math.log10(channel.max)
+            }
+            channel.Broadcast(Math.round(map(item, min, max, minMap,  maxMap)*channel.sliderValue))
+
+            
+        }
+
+    //check if the point falls within a gate, in which case play over that gate's output
+    for(gate of gates){
+        if(gate.active){
+            if(channelData[gate.XChannel].mode =="Linear"){
+                channelOne =  newFacs[newFacs.length-1][gate.XChannel]
+            }else{
+                channelOne =  Math.log10(newFacs[newFacs.length-1][gate.XChannel])
+            }
+            if(channelData[gate.YChannel].mode =="Linear"){
+                channelTwo =  newFacs[newFacs.length-1][gate.YChannel]
+            }else{
+                channelTwo =  Math.log10(newFacs[newFacs.length-1][gate.YChannel])
+            }
+
+            XMult = channelData[gate.XChannel].sliderValue * channelData[gate.XChannel].inputValue
+            YMult = channelData[gate.YChannel].sliderValue * channelData[gate.YChannel].inputValue
+
+            let displayX = Math.round(channelOne * XMult)
+            let displayY = 400- Math.round(channelTwo * YMult)
+
+            sampledX = displayX
+            sampledY = displayY
+
+            if(WithinGate(displayX, displayY, gate)){
+                if(gate.insturmentIndex != outputInsturment || gate.midiChannel != forwardChannel){
+                    outputInsturment = gate.insturmentIndex
+                    forwardChannel = gate.midiChannel
+                }
+            }
+        }
+    }
+
+    //draw an elipse at the sampled point
+    //NOTE: This could be a function
+    if(channelData[XChannel].mode =="Linear"){
+        channelOne =  newFacs[newFacs.length-1][gate.XChannel]
+    }else{
+        channelOne =  Math.log10(newFacs[newFacs.length-1][gate.XChannel])
+    }
+    if(channelData[YChannel].mode =="Linear"){
+        channelTwo =  newFacs[newFacs.length-1][gate.YChannel]
+    }else{
+        channelTwo =  Math.log10(newFacs[newFacs.length-1][gate.YChannel])
+    }
+
+    XMult = channelData[XChannel].sliderValue * channelData[XChannel].inputValue
+    YMult = channelData[YChannel].sliderValue * channelData[YChannel].inputValue
+
+    let displayX = Math.round(channelOne * XMult)
+    let displayY = 400- Math.round(channelTwo * YMult)
+
+    sampledX = displayX
+    sampledY = displayY
 }
