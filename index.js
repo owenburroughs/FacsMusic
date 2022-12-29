@@ -1,5 +1,5 @@
 let facs, XMult, YMult, XSlider, YSlider, XInput, YInput, Xmin, Xmax, Ymin, Ymax, 
-XSelect, XMode, YSelect, YMode, gatedCheckbox, sampledX, sampledY
+XSelect, XMode, YSelect, YMode, gatedCheckbox, sampledX, sampledY, sampleFromGate
 
 let width = 400;
 let height = 400;
@@ -11,8 +11,17 @@ let newFacs =[]
 let gates = []
 let gateIndex =0;
 let visableEvents=1500
-let sampleFromGateIndex = 0
+let sampleFromGateIndex = {
+    "default":true,
+    index:0
+}
+let currentEventIndex = 0
 let sampleMode = "Random"
+//the maximum number of times that it will look for a point within a gate before escaping
+let sampleLookupTolerance = 1000
+
+let winHeight= window.height
+let winWidth= window.width
 
 //p5 stuff
 function setup() {
@@ -35,14 +44,14 @@ function setup() {
             tempFacs = facs.events.map((x) => x);
             
             XMode = createSelect();
-            XMode.position(150,455)
+            XMode.position(150,430)
             XMode.style('width', "100px")
             XMode.option('Linear')
             XMode.option('Logarithmic')
             XMode.changed(ModeChange)
 
             YMode = createSelect();
-            YMode.position(410,255)
+            YMode.position(410,230)
             YMode.style('width', "100px")
             YMode.option('Linear')
             YMode.option('Logarithmic')
@@ -59,50 +68,59 @@ function setup() {
     })
     
     XSlider = createSlider(0, 1, 1, 0);
-    XSlider.position(10, 550);
+    XSlider.position(10, 525);
     XSlider.style('width', '300px')
+
     XInput = createInput('.002')
-    XInput.position(320, 550)
+    XInput.position(320, 525)
     XInput.style('width', '80px')
     
     YSlider = createSlider(0, 1, 1, 0);
-    YSlider.position(10, 600);
+    YSlider.position(10, 575);
     YSlider.style('width', '300px')
+
     YInput = createInput('.004')
-    YInput.position(320, 600)
+    YInput.position(320, 575)
     YInput.style('width', '80px')
 
     Xmin = createInput('0')
-    Xmin.position(10, 430)
+    Xmin.position(10, 410)
     Xmin.style('width', '80px')
     Xmin.input(MappingChange)
 
     Xmax = createInput('1')
-    Xmax.position(320, 430)
+    Xmax.position(320, 410)
     Xmax.style('width', '80px')
     Xmax.input(MappingChange)
 
     Ymin = createInput('0')
-    Ymin.position(410, 410)
+    Ymin.position(410, 390)
     Ymin.style('width', '80px')
     Ymin.input(MappingChange)
 
     Ymax = createInput('1')
-    Ymax.position(410, 30)
+    Ymax.position(410, 10)
     Ymax.style('width', '80px')
     Ymax.input(MappingChange)
 
     scaleXButton = createButton('Scale X')
-    scaleXButton.position(150, 480)
+    scaleXButton.position(150, 450)
     scaleXButton.mousePressed(ScaleX)
     scaleXButton.size(100, 20)
 
     scaleYButton = createButton('Scale Y')
-    scaleYButton.position (410, 280)
+    scaleYButton.position (410, 250)
     scaleYButton.mousePressed(ScaleY)
-    scaleYButton.size(100, 20)  
+    scaleYButton.size(100, 20)
+
+    sampleFromGate = createSelect()
+    //sampleFromGate.position(275,10)
+    sampleFromGate.changed(UpdateSampleFromGate)
+    sampleFromGate.parent(document.getElementById('settingsContainer'))
+    UpdateSampleFromGate()
 
     let midiChangeButton = createButton("Refresh MIDI Connections")
+    midiChangeButton.parent(document.getElementById("settingsContainer"))
     midiChangeButton.mousePressed(MidiRefresh)
   }
 
@@ -144,49 +162,29 @@ function draw() {
     channelData[YChannel].inputValue = float(YInput.value());
     channelData[YChannel].sliderValue = float(YSlider.value());
 
-    //define multipliers
-    XMult = XSlider.value() * float(XInput.value())
-    YMult = YSlider.value() * float(YInput.value())
+    //iterate through a number of points and draw them on screen
+    for(let i =0; i<visableEvents; i++){
+        displayXY = ReturnScaledXY(facs.events[i][XChannel], facs.events[i][YChannel], gates[gateIndex])
+       
+        if(WithinGate(displayXY[0],displayXY[1], gates[gateIndex])){
+            stroke('red')
+        }else{
+            stroke('black')
+        }
 
-     //if facs events exist, draw the events
-   // if(tempFacs.length>0){
-        let channelOne
-        let channelTwo
-
-        for(let i = 0; i <visableEvents; i++){
-            if(XMode.value() =="Linear"){
-                channelOne =  facs.events[i][XChannel]
-            }else{
-                channelOne =  Math.log10(facs.events[i][XChannel])
-            }
-            if(YMode.value() =="Linear"){
-                channelTwo =  facs.events[i][YChannel]
-            }else{
-                channelTwo =  Math.log10(facs.events[i][YChannel])
-            }
-        let displayX = Math.round(channelOne * XMult)
-        let displayY = 400- Math.round(channelTwo * YMult)
-            if(WithinGate(displayX,displayY,gates[gateIndex])){
-                stroke('red')
-            }else{
-                stroke('black')
-            }
-
-        if(displayX<width && displayY<height){
-            point(displayX,displayY)
+        if(displayXY[0]<width && displayXY[1]<height){
+            point(displayXY[0],displayXY[1])
         }
         stroke('black')
-        }
+    }
 
-        if(sampledX>0 && sampledY>0){
-            fill('red')
-            noStroke()
-            ellipse(sampledX, sampledY, 8, 8)
-            stroke(0)
-            fill("white")
-        }
-   // }
-    //PushNote()
+    if(sampledX>0 && sampledY>0){
+        fill('red')
+        noStroke()
+        ellipse(sampledX, sampledY, 8, 8)
+        stroke(0)
+        fill("white")
+    }
 }
 
 function mousePressed() {
@@ -226,12 +224,16 @@ function GateChange(){
     //see if deactivating the gate
     if (gatedCheckbox.checked() ==false){
         gates[gateIndex].active = false;
+        //update the selector for sample-from gate
+        UpdateSampleFromGate()
         return;
     }
     //check if a gate with the two parameters exists
     for(let i=0; i<gates.length; i++){
         if(gates[i].XChannel == XChannel && gates[i].YChannel == YChannel){
             gates[i].active = true;
+            //update the selector for sample-from gate
+            UpdateSampleFromGate()
             return;
         }
     }
@@ -240,7 +242,7 @@ function GateChange(){
 }
 
 //handle change of channels
-function ChannelChange(callback){
+function ChannelChange(){
     //change parameters
     XChannel = GetChannelIndex(XSelect.value())
     YChannel = GetChannelIndex(YSelect.value())
@@ -355,14 +357,14 @@ function InitializeChannels(){
 
     //Create and populate channel selection boxes
     XSelect = createSelect();
-    XSelect.position(150,430)
+    XSelect.position(150,410)
     XSelect.style('width', "100px")
     for(let i = 0; i < channelData.length; i++){
         XSelect.option(channelData[i].name);
     }
     XSelect.changed(ChannelChange)
     YSelect = createSelect();
-    YSelect.position(410, 230)
+    YSelect.position(410, 210)
     YSelect.style('width', "100px")
     for(let i = 0; i < channelData.length; i++){
         YSelect.option(channelData[i].name);
@@ -373,68 +375,71 @@ function InitializeChannels(){
     ChannelChange();
 }
 
-function PushNote(event){
+function PushNote(){
+    console.log(sampleFromGateIndex)
+    //Determine if point selection is random or sequential
+    if(sampleMode=="Random"){
+        //select points from the main array until a point is selected within the sample-from gate
+        currentEventIndex = Math.floor(Math.random() * tempFacs.length)
+
+        //check if the selection gate is default (in which case all points are valid so gate logic is skipped)
+        if(!sampleFromGateIndex.default){
+            let lookupBreakoutIndex = 0
+            currentEventIndex = Math.floor(Math.random() * tempFacs.length)
+            let lookupXY = ReturnScaledXY(tempFacs[currentEventIndex][XChannel],tempFacs[currentEventIndex][YChannel], gates[sampleFromGateIndex.index])
+            while(!WithinGate(lookupXY[0],lookupXY[1], gates[sampleFromGateIndex.index])){
+                //selected point isn't within the selection gate, try again
+                console.log(currentEventIndex)
+                currentEventIndex = Math.floor(Math.random() * tempFacs.length)
+                lookupXY = ReturnScaledXY(tempFacs[currentEventIndex][XChannel],tempFacs[currentEventIndex][YChannel], gates[sampleFromGateIndex.index])
+                lookupBreakoutIndex+=1
+                if(lookupBreakoutIndex>sampleLookupTolerance){
+                    alert("No Points Within Selected Gate")
+                    break;
+                }
+            }
+        
+        }  
+        newFacs.push(tempFacs[currentEventIndex])
+        tempFacs.splice(currentEventIndex,1)
+    }
 
     outputInsturment = defaultInsturmentSelect.elt.selectedIndex
     forwardChannel = defaultChannelSelect.elt.selectedIndex + 1
 
-    let randomIndex = Math.floor(Math.random() * tempFacs.length)
-        newFacs.push(tempFacs[randomIndex])
-        tempFacs.splice(randomIndex,1)
+    //scale and set parameters for each channel
+    for (let channel of channelData){
+        let minMap = parseInt(channel.minMap)
+        let maxMap = parseInt(channel.maxMap)
+        let item, min, max
 
-        //scale and set parameters for each channel
-        for (let channel of channelData){
-            let minMap = parseInt(channel.minMap)
-            let maxMap = parseInt(channel.maxMap)
-            let item, min, max
-
-            if(channel.mode == "Linear"){
-                item = newFacs[newFacs.length - 1][channel.index]
-                min = channel.min
-                max = channel.max
+        if(channel.mode == "Linear"){
+            item = newFacs[newFacs.length - 1][channel.index]
+            min = channel.min
+            max = channel.max
+        }else{
+            if(tempFacs[tempFacs.length - 1][channel.index]<=0){
+                item = 0
             }else{
-                if(tempFacs[randomIndex][channel.index]<=0){
-                    item = 0
-                }else{
-                    item = Math.log10(newFacs[newFacs.length - 1][channel.index])
-                }
-
-                if(channel.min<=0){
-                    min=0
-                }else{
-                    min = Math.log10(channel.min)
-                }
-                max = Math.log10(channel.max)
+                item = Math.log10(newFacs[newFacs.length - 1][channel.index])
             }
-            channel.Broadcast(Math.round(map(item, min, max, minMap,  maxMap)*channel.sliderValue))
 
-            
+            if(channel.min<=0){
+                min=0
+            }else{
+                min = Math.log10(channel.min)
+            }
+            max = Math.log10(channel.max)
         }
+        channel.Broadcast(Math.round(map(item, min, max, minMap,  maxMap)*channel.sliderValue))
+    }
 
     //check if the point falls within a gate, in which case play over that gate's output
-    for(gate of gates){
+    for(let gate of gates){
         if(gate.active){
-            if(channelData[gate.XChannel].mode =="Linear"){
-                channelOne =  newFacs[newFacs.length-1][gate.XChannel]
-            }else{
-                channelOne =  Math.log10(newFacs[newFacs.length-1][gate.XChannel])
-            }
-            if(channelData[gate.YChannel].mode =="Linear"){
-                channelTwo =  newFacs[newFacs.length-1][gate.YChannel]
-            }else{
-                channelTwo =  Math.log10(newFacs[newFacs.length-1][gate.YChannel])
-            }
+            let scaledXYofGateChannels = ReturnScaledXY(newFacs[newFacs.length-1][gate.XChannel], newFacs[newFacs.length-1][gate.YChannel], gate)
 
-            XMult = channelData[gate.XChannel].sliderValue * channelData[gate.XChannel].inputValue
-            YMult = channelData[gate.YChannel].sliderValue * channelData[gate.YChannel].inputValue
-
-            let displayX = Math.round(channelOne * XMult)
-            let displayY = 400- Math.round(channelTwo * YMult)
-
-            sampledX = displayX
-            sampledY = displayY
-
-            if(WithinGate(displayX, displayY, gate)){
+            if(WithinGate(scaledXYofGateChannels[0], scaledXYofGateChannels[1], gate)){
                 if(gate.insturmentIndex != outputInsturment || gate.midiChannel != forwardChannel){
                     outputInsturment = gate.insturmentIndex
                     forwardChannel = gate.midiChannel
@@ -443,25 +448,63 @@ function PushNote(event){
         }
     }
 
-    //draw an elipse at the sampled point
-    //NOTE: This could be a function
-    if(channelData[XChannel].mode =="Linear"){
-        channelOne =  newFacs[newFacs.length-1][gate.XChannel]
+    //set the variables sampledX and sampledY to the XY of the sampled point in the current viewpoint so an elipse can be drawn in the draw loop
+    let displayXY = ReturnScaledXY(newFacs[newFacs.length-1][XChannel],newFacs[newFacs.length-1][YChannel],gates[gateIndex])
+    sampledX = displayXY[0]
+    sampledY = displayXY[1]
+}
+
+//given a gate (with X and Y channels), return an array holding the XY of the point scaled to the plot (400x400)
+function ReturnScaledXY(x, y, gate){
+    if(channelData[gate.XChannel].mode =="Linear"){
+        channelOne =  x
     }else{
-        channelOne =  Math.log10(newFacs[newFacs.length-1][gate.XChannel])
+        channelOne =  Math.log10(x)
     }
-    if(channelData[YChannel].mode =="Linear"){
-        channelTwo =  newFacs[newFacs.length-1][gate.YChannel]
+    if(channelData[gate.YChannel].mode =="Linear"){
+        channelTwo =  y
     }else{
-        channelTwo =  Math.log10(newFacs[newFacs.length-1][gate.YChannel])
+        channelTwo =  Math.log10(y)
     }
 
-    XMult = channelData[XChannel].sliderValue * channelData[XChannel].inputValue
-    YMult = channelData[YChannel].sliderValue * channelData[YChannel].inputValue
+    XMult = channelData[gate.XChannel].sliderValue * channelData[gate.XChannel].inputValue
+    YMult = channelData[gate.YChannel].sliderValue * channelData[gate.YChannel].inputValue
 
-    let displayX = Math.round(channelOne * XMult)
-    let displayY = 400- Math.round(channelTwo * YMult)
+    let returnX = Math.round(channelOne * XMult)
+    let returnY = 400- Math.round(channelTwo * YMult)
+    return([returnX, returnY])
+}
 
-    sampledX = displayX
-    sampledY = displayY
+//NOTE: This code is a mess. I need to change the gate functionality
+function UpdateSampleFromGate(){
+    if(sampleFromGate.elt.selectedIndex > 0){
+        //selected index isn't default
+        sampleFromGateIndex.index = sampleFromGate.selected().split(',')[0]
+        sampleFromGateIndex.default = false
+    }else{
+        sampleFromGateIndex.default = true
+    }
+    console.log(sampleFromGate)
+
+    //remove select options
+    sampleFromGate.remove()
+    sampleFromGate = createSelect()
+    //sampleFromGate.position(275,10)
+    sampleFromGate.parent(document.getElementById("settingsContainer"))
+    sampleFromGate.changed(UpdateSampleFromGate)
+    sampleFromGate.option("Sample All Points")
+
+    //reset select options
+    for(let gate of gates){
+        if(gate.active){
+            console.log(gate)
+            sampleFromGate.option(`${gates.indexOf(gate)}, ${facs.channels[gate.XChannel]} vs. ${facs.channels[gate.YChannel]}`)
+        }
+    }
+
+    if(sampleFromGateIndex.default){
+        sampleFromGate.elt.selectedIndex = 0
+    }else{
+        sampleFromGate.selected(`${gates.indexOf(gates[sampleFromGateIndex.index])}, ${facs.channels[gate.XChannel]} vs. ${facs.channels[gate.YChannel]}`)
+    }
 }

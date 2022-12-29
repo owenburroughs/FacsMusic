@@ -71,7 +71,7 @@ function AssignDefaultMidiOut(){
         defaultInsturmentSelect.remove()
         defaultChannelSelect.remove()
     }
-    console.log(forwardChannel)
+
     //if insturment and channel selections don't exist, create them
         defaultInsturmentSelect = createSelect()
         defaultInsturmentSelect.parent(defaultInsturmentSelectContainer)
@@ -113,6 +113,9 @@ function AssignDefaultMidiIn(){
         defaultInputSelect = createSelect()
         defaultChannelInputSelect = createSelect()
 
+        defaultInputSelect.parent(document.getElementById("settingsContainer"))
+        defaultChannelInputSelect.parent(document.getElementById("settingsContainer"))
+
         
     //create selection for all midi insturments
     if (midiInputs.length == 0){
@@ -149,8 +152,6 @@ function UpdateMidiIn(){
         }
         inputInsturment = defaultInputSelect.elt.selectedIndex
         listenChannel = defaultChannelInputSelect.elt.selectedIndex + 1
-
-        console.log(inputInsturment)
 
          //assign functionality for incoming MIDI signals
          midiInputs[inputInsturment].channels[listenChannel].addListener("midimessage", e => {
